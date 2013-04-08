@@ -4,12 +4,7 @@
 
 This guide describes how to obtain, create, and modify virtual machine images that are compatible with OpenStack.
 
-If you are running KVM, the most common image formats are:
-
- * raw
- * qcow2
-
-
+If you are running KVM, the most common image formats are raw and QCOW2. However, you may need to convert from a different format (e.g., if you are importing an image from another hypervisor such as VirtualBox).
 
 ## Obtaining images
 
@@ -22,10 +17,12 @@ The simplest way to obtain a virtual machine that works with OpenStack is is to 
 [CirrOS download page]
 
 
-
 ### Ubuntu
 
-<http://cloud-images.ubuntu.com/>
+Canonical maintains a set of [Ubuntu cloud images], organized by release version and release date. For example, the [Precise "current" page] (scroll down to the bottom) has 
+
+[Ubuntu cloud images]: http://cloud-images.ubuntu.com/
+[Precise "current" page]: http://cloud-images.ubuntu.com/precise/current/
 
 ### Other distributions 
 
@@ -44,7 +41,7 @@ You'll often need to convert images from one format to another.
 
 ## Raw to QCOW2
 
-This wil convert a raw image file named centos63.dsk to a qcow2 image file 
+This will convert a raw image file named centos63.dsk to a qcow2 image file 
 
 	qemu-img convert -O qcow2 centos64.dsk centos64.qcow2
 
@@ -60,7 +57,7 @@ Once converted, you can now add it to the OpenStack Image Service. For example:
 
 VirtualBox uses the VDI format for virtual machine images. If you've created an image using VirtualBox, you can convert it to raw format using the VBoxManage command-line tool:
 
-    VBoxManage clonehd fedora18.vdi fedora18.img --format raw
+    VBoxManage clonehd ~/VirtualBox\ VMs/fedora18.vdi fedora18.img --format raw
 
 # Altering an image
 
@@ -70,9 +67,9 @@ VirtualBox uses the VDI format for virtual machine images. If you've created an 
 
 Note that guestfish doesn't mount the image directly into the local filesystem. Instead, it provides you with a shell interface that provides similar functionality, allowing you to view, edit, and delete files.
 
-Assume we have a CentOS raw image called `centos63_desktop.img` and we want to delete the `/etc/udev/rules.d/70-persistent-net.rules` file and remove `HWADDR` from the `/etc/sysconfig/network-scripts/ifcfg-eth0` file. 
+Assume we have a CentOS raw image called `centos63_desktop.img` and we want to delete the `/etc/udev/rules.d/70-persistent-net.rules` file and `/lib/udev/rules.d/75-persistent-net-generator.rules` file and remove `HWADDR` from the `/etc/sysconfig/network-scripts/ifcfg-eth0` file. 
 
-We would mount the image in read-write mode by doing
+We would mount the image in read-write mode by doing, as root:
 
 	guestfish --rw -a centos63_desktop.img
 	
@@ -92,13 +89,30 @@ We need to mount the logical volume that contains the root partition:
 
     ><fs> mount /dev/vg_centosbase/lv_root /
     
-We want to delete the 70-persistent-net.rules file:
+We want to delete some files:
 
 	><fs> rm /etc/udev/rules.d/70-persistent-net.rules
+	><fs> rm /lib/udev/rules.d/75-persistent-net-generator.rules  
 
 We want to edit the ifcfg-eth0 file to remove the HWADDR line. The `edit` command will copy the file locally, invoke an editor, and then copy the file back. 
 
 	><fs> edit /etc/sysconfig/network-scripts/ifcfg-eth0
+	
+
+We want to load the 8021q kernel at boot time. So we do:
+
+	><fs> touch /etc/sysconfig/modules/8021q.modules
+	><fs> edit /etc/sysconfig/modules/8021q.modules
+	
+We add the following to the file:
+
+	modprobe 8021q
+
+Then we set to executable:
+
+	><fs> chmod 0755 /etc/sysconfig/modules/8021q.modules
+
+
 
 Exit now that we are done:
 
@@ -108,9 +122,9 @@ Exit now that we are done:
 [guestfish]: http://libguestfs.org/guestfish.1.html
 
 
-## kpartx and nbd
+## Mounting an image to the lcoal file system
 
-If you don't have access to guestfish, you can use `kpartx` and `nbd` to mount an image and then modify it.
+loop devices, kpartx and network block devices (nbd).
 
 
 # Manually creating an image
